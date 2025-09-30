@@ -18,7 +18,7 @@ import org.newdawn.spaceinvaders.entity.AlienEntity;
 import org.newdawn.spaceinvaders.entity.Entity;
 import org.newdawn.spaceinvaders.entity.ShipEntity;
 import org.newdawn.spaceinvaders.entity.ShotEntity;
-
+//깃허브 테스트용 주석
 /**
  * The main hook of our game. This class with both act as a manager
  * for the display and central mediator for the game logic. 
