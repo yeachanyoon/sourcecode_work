@@ -7,7 +7,7 @@ public class BossEntity extends Entity {
     private final int maxHp = 5000;// //현재 체력
     private int hp = maxHp;
 
-    //총알
+    //총알x`
     public void applyBulletDamage(int base) {
         applyDamage(base);
     }
