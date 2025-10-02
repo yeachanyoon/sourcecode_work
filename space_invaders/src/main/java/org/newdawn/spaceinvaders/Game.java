@@ -274,7 +274,7 @@ public class Game extends Canvas
 			// Get hold of a graphics context for the accelerated 
 			// surface and blank it out
 			Graphics2D g = (Graphics2D) strategy.getDrawGraphics();
-			g.setColor(Color.black);
+			g.setColor(Color.black); //배경색
 			g.fillRect(0,0,800,600);
 			
 			// cycle round asking each entity to move itself
