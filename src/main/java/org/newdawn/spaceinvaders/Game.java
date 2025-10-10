@@ -21,6 +21,9 @@ import org.newdawn.spaceinvaders.entity.ShotEntity;
 import org.newdawn.spaceinvaders.entity.GameState;
 import org.newdawn.spaceinvaders.entity.PlayerState;
 import org.newdawn.spaceinvaders.entity.AlienState;
+//랭킹 스코어
+//import org.newdawn.spaceinvaders.PlayerScore;
+//import org.newdawn.spaceinvaders.RankingManager;
 //깃허브 테스트용 주석
 // SnakeYAML 라이브러리의 핵심 클래스
 import org.yaml.snakeyaml.Yaml;
@@ -48,6 +51,9 @@ import java.util.HashMap;
 import javax.swing.JMenuBar;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.SwingUtilities; // 이 jpanel 에러 해결용 줄
+//랭킹 스코어
+import javax.swing.JOptionPane;
 /**
  * The main hook of our game. This class with both act as a manager
  * for the display and central mediator for the game logic. 
@@ -84,8 +90,12 @@ public class Game extends Canvas
 	private long firingInterval = 500;
 	/** The number of aliens left on the screen */
 	private int alienCount;
-	
-	/** The message to display which waiting for a key press */
+//    변수 추가
+    private int score; // 스코어 변수 추가
+    private RankingManager rankingManager; // 랭킹 관리자 추가
+
+
+    /** The message to display which waiting for a key press */
 	private String message = "";
 	/** True if we're holding up game play until a key has been pressed */
 	private boolean waitingForKeyPress = true;
@@ -114,8 +124,11 @@ public class Game extends Canvas
 	public Game() {
 		// create a frame to contain our game
 		container = new JFrame("Space Invaders 102");
-		
-		// get hold the content of the frame and set up the resolution of the game
+        rankingManager = new RankingManager(); // 랭킹 관리자 초기화
+
+
+
+        // get hold the content of the frame and set up the resolution of the game
 		JPanel panel = (JPanel) container.getContentPane();
 		panel.setPreferredSize(new Dimension(800,600));
 		panel.setLayout(null);
@@ -137,6 +150,11 @@ public class Game extends Canvas
         loadItem.addActionListener(e -> loadGame()); // 람다식으로 loadGame() 메소드 호출
         fileMenu.add(loadItem);
 
+        // --- 랭킹 메뉴 아이템 추가 ---
+        JMenuItem rankingItem = new JMenuItem("Ranking");
+        rankingItem.addActionListener(e -> rankingManager.showRankingBoard(container));
+        fileMenu.add(rankingItem);
+        // -------------------------
         // 5. 생성된 메뉴바를 프레임(container)에 붙이기
         container.setJMenuBar(menuBar);
 
@@ -186,6 +204,7 @@ public class Game extends Canvas
 		// clear out any existing entities and intialise a new set
 		entities.clear();
 		initEntities();
+        score = 0; // 점수 초기화
 		
 		// blank out any keyboard settings we might currently have
 		leftPressed = false;
@@ -236,8 +255,9 @@ public class Game extends Canvas
 	 * Notification that the player has died. 
 	 */
 	public void notifyDeath() {
-		message = "Oh no! They got you, try again?";
-		waitingForKeyPress = true;
+        endGame("Oh no! They got you, try again?");
+        //		message = "Oh no! They got you, try again?";
+        //		waitingForKeyPress = true;
 	}
 	
 	/**
@@ -245,8 +265,9 @@ public class Game extends Canvas
 	 * are dead.
 	 */
 	public void notifyWin() {
-		message = "Well done! You Win!";
-		waitingForKeyPress = true;
+        endGame("Well done! You Win!");
+//		message = "Well done! You Win!";
+//		waitingForKeyPress = true;
 	}
 	
 	/**
@@ -254,6 +275,7 @@ public class Game extends Canvas
 	 */
 	public void notifyAlienKilled() {
 		// reduce the alient count, if there are none left, the player has won!
+        score += 100; // 외계인 처치 시 100점 추가
 		alienCount--;
 		
 		if (alienCount == 0) {
@@ -271,7 +293,21 @@ public class Game extends Canvas
 			}
 		}
 	}
-	
+    // Game.java 내부에 새로운 메소드로 추가
+    private void endGame(String winOrLoseMessage) {
+        // UI 관련 작업을 안전하게 UI 스레드에서 실행하도록 예약합니다.
+        SwingUtilities.invokeLater(() -> {
+            String name = JOptionPane.showInputDialog(container, "Your Score: " + score + "\nEnter your name:", "Game Over", JOptionPane.INFORMATION_MESSAGE);
+            if (name != null && !name.trim().isEmpty()) {
+                rankingManager.addScore(name, score);
+            }
+            // 이름 입력창이 완전히 닫힌 후 랭킹 보드를 보여줍니다.
+            rankingManager.showRankingBoard(container);
+        });
+
+        message = winOrLoseMessage;
+        waitingForKeyPress = true;
+    }
 	/**
 	 * Attempt to fire a shot from the player. Its called "try"
 	 * since we must first check that the player can fire at this 
@@ -302,7 +338,9 @@ public class Game extends Canvas
 	 */
 	public void gameLoop() {
 		long lastLoopTime = SystemTimer.getTime();
-		
+
+
+
 		// keep looping round til the game ends
 		while (gameRunning) {
 			// work out how long its been since the last update, this
@@ -328,7 +366,9 @@ public class Game extends Canvas
 			Graphics2D g = (Graphics2D) strategy.getDrawGraphics();
 			g.setColor(Color.black);
 			g.fillRect(0,0,800,600);
-			
+			//점수판
+            g.setColor(Color.white);
+            g.drawString("Score: " + score, 10, 20);
 			// cycle round asking each entity to move itself
 			if (!waitingForKeyPress) {
 				for (int i=0;i<entities.size();i++) {
@@ -515,6 +555,8 @@ public class Game extends Canvas
         try (FileWriter writer = new FileWriter(SAVE_FILE_PATH)) {
             GameState gameState = new GameState();
             gameState.alienCount = this.alienCount;
+            gameState.score = this.score; // 현재 점수를 gameState에 저장
+
             gameState.playerState = new PlayerState(ship.getX(), ship.getY());
             gameState.alienStates = entities.stream()
                     .filter(e -> e instanceof AlienEntity)
@@ -563,6 +605,8 @@ public class Game extends Canvas
 
             entities.clear();
             this.alienCount = loadedState.alienCount;
+            this.score = loadedState.score; // 불러온 점수를 현재 게임에 적용
+
 
             ship = new ShipEntity(this, "sprites/ship.gif", (int)loadedState.playerState.x, (int)loadedState.playerState.y);
             entities.add(ship);
