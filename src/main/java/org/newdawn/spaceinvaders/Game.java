@@ -18,7 +18,36 @@ import org.newdawn.spaceinvaders.entity.AlienEntity;
 import org.newdawn.spaceinvaders.entity.Entity;
 import org.newdawn.spaceinvaders.entity.ShipEntity;
 import org.newdawn.spaceinvaders.entity.ShotEntity;
+import org.newdawn.spaceinvaders.entity.GameState;
+import org.newdawn.spaceinvaders.entity.PlayerState;
+import org.newdawn.spaceinvaders.entity.AlienState;
 //깃허브 테스트용 주석
+// SnakeYAML 라이브러리의 핵심 클래스
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
+// 파일 입출력을 위한 자바 기본 클래스
+import java.io.FileWriter;       // 파일에 쓸 때
+import java.io.FileInputStream;  // 파일에서 읽어올 때
+import java.io.InputStream;      // 스트림으로 데이터를 다룰 때
+import java.io.IOException;// 입출력 예외 처리를 위해
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.util.stream.Collectors;
+
+// YAML 데이터 구조를 담을 자바의 자료구조 클래스
+import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+
+/*메뉴바 기능*/
+import javax.swing.JMenuBar;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 /**
  * The main hook of our game. This class with both act as a manager
  * for the display and central mediator for the game logic. 
@@ -36,14 +65,15 @@ import org.newdawn.spaceinvaders.entity.ShotEntity;
  */
 public class Game extends Canvas 
 {
+
 	/** The stragey that allows us to use accelerate page flipping */
 	private BufferStrategy strategy;
 	/** True if the game is currently "running", i.e. the game loop is looping */
 	private boolean gameRunning = true;
 	/** The list of all the entities that exist in our game */
-	private ArrayList entities = new ArrayList();
+	private ArrayList<Entity> entities = new ArrayList<>();
 	/** The list of entities that need to be removed from the game this loop */
-	private ArrayList removeList = new ArrayList();
+	private ArrayList<Entity> removeList = new ArrayList<>();
 	/** The entity representing the player */
 	private Entity ship;
 	/** The speed at which the player's ship should move (pixels/sec) */
@@ -76,6 +106,8 @@ public class Game extends Canvas
 	/** The game window that we'll update with the frame count */
 	private JFrame container;
     private int JuSuk;
+    /** 저장경로 추가**/
+    private final String SAVE_FILE_PATH = "savegame.yaml";
 	/**
 	 * Construct our game and set it running.
 	 */
@@ -87,7 +119,27 @@ public class Game extends Canvas
 		JPanel panel = (JPanel) container.getContentPane();
 		panel.setPreferredSize(new Dimension(800,600));
 		panel.setLayout(null);
-		
+
+        // 1. 메뉴바 생성
+        JMenuBar menuBar = new JMenuBar();
+
+        // 2. "File" 메뉴 생성
+        JMenu fileMenu = new JMenu("File");
+        menuBar.add(fileMenu);
+
+        // 3. "Save Game" 메뉴 아이템 생성 및 이벤트 연결
+        JMenuItem saveItem = new JMenuItem("Save Game");
+        saveItem.addActionListener(e -> saveGame()); // 람다식으로 saveGame() 메소드 호출
+        fileMenu.add(saveItem);
+
+        // 4. "Load Game" 메뉴 아이템 생성 및 이벤트 연결
+        JMenuItem loadItem = new JMenuItem("Load Game");
+        loadItem.addActionListener(e -> loadGame()); // 람다식으로 loadGame() 메소드 호출
+        fileMenu.add(loadItem);
+
+        // 5. 생성된 메뉴바를 프레임(container)에 붙이기
+        container.setJMenuBar(menuBar);
+
 		// setup our canvas size and put it into the content of the frame
 		setBounds(0,0,800,600);
 		panel.add(this);
@@ -457,7 +509,77 @@ public class Game extends Canvas
 			}
 		}
 	}
-	
+
+    /*저장을 위한 메소드 두개*/
+    public void saveGame() {
+        try (FileWriter writer = new FileWriter(SAVE_FILE_PATH)) {
+            GameState gameState = new GameState();
+            gameState.alienCount = this.alienCount;
+            gameState.playerState = new PlayerState(ship.getX(), ship.getY());
+            gameState.alienStates = entities.stream()
+                    .filter(e -> e instanceof AlienEntity)
+                    .map(e -> {
+                        AlienEntity alien = (AlienEntity) e;
+                        return new AlienState(alien.getX(), alien.getY(), alien.getHorizontalMovement());
+                    })
+                    .collect(Collectors.toList());
+
+            // =================  수정된 부분 시작 =================
+
+            // 1. Representer를 생성하여 GameState 클래스를 일반 맵(MAP)으로 취급하도록 설정
+            //    이렇게 하면 !!...GameState 태그가 파일에 쓰이지 않습니다.
+            Representer representer = new Representer(new DumperOptions());
+            representer.addClassTag(GameState.class, Tag.MAP);
+
+            // 2. 이 Representer를 사용하여 Yaml 객체 생성
+            Yaml yaml = new Yaml(representer);
+
+            // =================  수정된 부분 끝 =================
+
+            yaml.dump(gameState, writer);
+
+            message = "Game Saved!";
+            lastFire = System.currentTimeMillis() + 2000;
+        } catch (IOException e) {
+            message = "Error saving game: " + e.getMessage();
+        }
+    }
+
+    public void loadGame() {
+        try (FileReader reader = new FileReader(SAVE_FILE_PATH)) {
+
+            // =================  수정된 부분 시작 =================
+
+            // 가장 간단한 Yaml 객체와 loadAs 메소드를 사용합니다.
+            Yaml yaml = new Yaml();
+            GameState loadedState = yaml.loadAs(reader, GameState.class);
+
+            // =================  수정된 부분 끝 =================
+
+            if (loadedState == null) {
+                message = "No save data found.";
+                return;
+            }
+
+            entities.clear();
+            this.alienCount = loadedState.alienCount;
+
+            ship = new ShipEntity(this, "sprites/ship.gif", (int)loadedState.playerState.x, (int)loadedState.playerState.y);
+            entities.add(ship);
+
+            for (AlienState alienState : loadedState.alienStates) {
+                AlienEntity alien = new AlienEntity(this, (int)alienState.x, (int)alienState.y);
+                alien.setHorizontalMovement(alienState.dx);
+                entities.add(alien);
+            }
+
+            message = "Game Loaded!";
+            waitingForKeyPress = false;
+
+        } catch (IOException e) {
+            message = "Error loading game: " + e.getMessage();
+        }
+    }
 	/**
 	 * The entry point into the game. We'll simply create an
 	 * instance of class which will start the display and game
