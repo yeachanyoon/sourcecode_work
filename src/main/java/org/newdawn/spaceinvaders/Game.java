@@ -93,10 +93,17 @@ public class Game extends Canvas
 //    변수 추가
     private int score; // 스코어 변수 추가
     private RankingManager rankingManager; // 랭킹 관리자 추가
+    private ShopManager shopManager; // ShopManager 변수 추가
 //    기체 강화
     private int bulletCount = 1; // 현재 발사되는 탄 개수
     private boolean speedUpgradeApplied = false; // 속도 강화 적용 여부
     private boolean bulletCountUpgradeApplied = false; // 탄 개수 강화 적용 여부
+
+    //상점
+    private int tokens = 0; // 토큰 변수 추가
+    private String currentShipSprite = "sprites/ship.gif"; // 현재 함선 디자인
+    private Color backgroundColor = Color.black; // 현재 배경색
+
 
     /** The message to display which waiting for a key press */
 	private String message = "";
@@ -121,6 +128,8 @@ public class Game extends Canvas
     private int JuSuk;
     /** 저장경로 추가**/
     private final String SAVE_FILE_PATH = "savegame.yaml";
+
+
 	/**
 	 * Construct our game and set it running.
 	 */
@@ -128,7 +137,9 @@ public class Game extends Canvas
 		// create a frame to contain our game
 		container = new JFrame("Space Invaders 102");
         rankingManager = new RankingManager(); // 랭킹 관리자 초기화
-
+        // rankingManager 초기화 바로 다음에 shopManager를 초기화합니다.
+        rankingManager = new RankingManager();
+        shopManager = new ShopManager(this);
 
 
         // get hold the content of the frame and set up the resolution of the game
@@ -157,6 +168,13 @@ public class Game extends Canvas
         JMenuItem rankingItem = new JMenuItem("Ranking");
         rankingItem.addActionListener(e -> rankingManager.showRankingBoard(container));
         fileMenu.add(rankingItem);
+
+        // --- 상점 메뉴 아이템 추가 ---
+        JMenuItem shopItem = new JMenuItem("Shop");
+        shopItem.addActionListener(e -> shopManager.showShopDialog());
+        fileMenu.add(shopItem);
+        // -------------------------
+
         // -------------------------
         // 5. 생성된 메뉴바를 프레임(container)에 붙이기
         container.setJMenuBar(menuBar);
@@ -226,7 +244,7 @@ public class Game extends Canvas
 	 */
 	private void initEntities() {
 		// create the player ship and place it roughly in the center of the screen
-		ship = new ShipEntity(this,"sprites/ship.gif",370,550);
+        ship = new ShipEntity(this, currentShipSprite, 370, 550); // 변수 사용
 		entities.add(ship);
 		
 		// create a block of aliens (5 rows, by 12 aliens, spaced evenly)
@@ -284,6 +302,10 @@ public class Game extends Canvas
 	public void notifyAlienKilled() {
 		// reduce the alient count, if there are none left, the player has won!
         score += 100; // 외계인 처치 시 100점 추가
+        // 20% 확률로 토큰 1개 획득
+        if (Math.random() < 0.2) {
+            tokens++;
+        }
 		alienCount--;
 		
 		if (alienCount == 0) {
@@ -376,6 +398,15 @@ public class Game extends Canvas
         return removeList.contains(entity);
     }
 
+    // ShopManager가 Game 객체에 접근하기 위한 Getter/Setter
+    public int getTokens() { return tokens; }
+    public JFrame getContainer() { return container; }
+    public void spendTokens(int amount) { this.tokens -= amount; }
+    public void setCurrentShipSprite(String spritePath) { this.currentShipSprite = spritePath; }
+    public void setBackground(Color color) {
+        this.backgroundColor = color;
+    }
+
     public void gameLoop() {
 		long lastLoopTime = SystemTimer.getTime();
 
@@ -405,11 +436,12 @@ public class Game extends Canvas
 			// Get hold of a graphics context for the accelerated 
 			// surface and blank it out
 			Graphics2D g = (Graphics2D) strategy.getDrawGraphics();
-			g.setColor(Color.black);
+            g.setColor(backgroundColor); // Color.black 대신 backgroundColor 변수 사용
 			g.fillRect(0,0,800,600);
 			//점수판
             g.setColor(Color.white);
             g.drawString("Score: " + score, 10, 20);
+            g.drawString("Tokens: " + tokens, 10, 35); // 토큰 개수 표시
 			// cycle round asking each entity to move itself
 			if (!waitingForKeyPress) {
 				for (int i=0;i<entities.size();i++) {
@@ -597,6 +629,12 @@ public class Game extends Canvas
             GameState gameState = new GameState();
             gameState.alienCount = this.alienCount;
             gameState.score = this.score; // 현재 점수를 gameState에 저장
+            //토큰
+            gameState.tokens = this.tokens;
+            gameState.currentShipSprite = this.currentShipSprite;
+            gameState.backgroundColorR = this.backgroundColor.getRed();
+            gameState.backgroundColorG = this.backgroundColor.getGreen();
+            gameState.backgroundColorB = this.backgroundColor.getBlue();
             // 기체 강화 저장
             gameState.moveSpeed = this.moveSpeed;
             gameState.firingInterval = this.firingInterval;
@@ -647,6 +685,10 @@ public class Game extends Canvas
             // 불러온 상태 적용
             this.alienCount = loadedState.alienCount;
             this.score = loadedState.score;
+            // 토큰 부분
+            this.tokens = loadedState.tokens;
+            this.currentShipSprite = loadedState.currentShipSprite;
+            this.backgroundColor = new Color(loadedState.backgroundColorR, loadedState.backgroundColorG, loadedState.backgroundColorB);
 
             // 강화 상태 불러오기
             this.moveSpeed = loadedState.moveSpeed;
