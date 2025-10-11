@@ -58,9 +58,13 @@ public class ShotEntity extends Entity {
 		if (used) {
 			return;
 		}
-		
+
 		// if we've hit an alien, kill it!
 		if (other instanceof AlienEntity) {
+            // 이 외계인이 이미 제거될 예정인지 확인하는 코드 추가
+            if (game.isPendingRemoval(other)) {
+                return; // 이미 죽을 운명이면 아무것도 하지 않음
+            }
 			// remove the affected entities
 			game.removeEntity(this);
 			game.removeEntity(other);

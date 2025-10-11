@@ -93,7 +93,10 @@ public class Game extends Canvas
 //    변수 추가
     private int score; // 스코어 변수 추가
     private RankingManager rankingManager; // 랭킹 관리자 추가
-
+//    기체 강화
+    private int bulletCount = 1; // 현재 발사되는 탄 개수
+    private boolean speedUpgradeApplied = false; // 속도 강화 적용 여부
+    private boolean bulletCountUpgradeApplied = false; // 탄 개수 강화 적용 여부
 
     /** The message to display which waiting for a key press */
 	private String message = "";
@@ -205,7 +208,12 @@ public class Game extends Canvas
 		entities.clear();
 		initEntities();
         score = 0; // 점수 초기화
-		
+        //기체 스테이터스
+        moveSpeed = 300;
+        firingInterval = 500;
+        bulletCount = 1;
+        speedUpgradeApplied = false;
+        bulletCountUpgradeApplied = false;
 		// blank out any keyboard settings we might currently have
 		leftPressed = false;
 		rightPressed = false;
@@ -321,8 +329,16 @@ public class Game extends Canvas
 		
 		// if we waited long enough, create the shot entity, and record the time.
 		lastFire = System.currentTimeMillis();
-		ShotEntity shot = new ShotEntity(this,"sprites/shot.gif",ship.getX()+10,ship.getY()-30);
-		entities.add(shot);
+        if (bulletCount == 1) {
+            ShotEntity shot = new ShotEntity(this, "sprites/shot.gif", ship.getX() + 10, ship.getY() - 30);
+            entities.add(shot);
+        } else if (bulletCount >= 2) {
+            // 탄 개수 강화 시, 두 발을 살짝 벌려서 발사
+            ShotEntity shot1 = new ShotEntity(this, "sprites/shot.gif", ship.getX() + 2, ship.getY() - 30);
+            ShotEntity shot2 = new ShotEntity(this, "sprites/shot.gif", ship.getX() + 18, ship.getY() - 30);
+            entities.add(shot1);
+            entities.add(shot2);
+        }
 	}
 	
 	/**
@@ -336,7 +352,31 @@ public class Game extends Canvas
 	 * - Checking Input
 	 * <p>
 	 */
-	public void gameLoop() {
+    //강화 체크
+    private void checkUpgrades() {
+        // 2000점: 속도 강화
+        if (score >= 2000 && !speedUpgradeApplied) {
+            speedUpgradeApplied = true;
+            moveSpeed *= 1.3; // 이동 속도 30% 증가
+            firingInterval *= 0.7; // 연사 간격 30% 감소 (연사 속도 증가)
+            message = "SPEED & FIRE RATE UP!";
+            lastFire = System.currentTimeMillis() + 2000; // 2초간 메시지 표시
+        }
+
+        // 4000점: 탄 개수 강화
+        if (score >= 4000 && !bulletCountUpgradeApplied) {
+            bulletCountUpgradeApplied = true;
+            bulletCount = 2; // 탄 개수 2개로 증가
+            message = "MULTI-SHOT UPGRADE!";
+            lastFire = System.currentTimeMillis() + 2000;
+        }
+    }
+
+    public boolean isPendingRemoval(Entity entity) {
+        return removeList.contains(entity);
+    }
+
+    public void gameLoop() {
 		long lastLoopTime = SystemTimer.getTime();
 
 
@@ -346,6 +386,7 @@ public class Game extends Canvas
 			// work out how long its been since the last update, this
 			// will be used to calculate how far the entities should
 			// move this loop
+            checkUpgrades();
 			long delta = SystemTimer.getTime() - lastLoopTime;
 			lastLoopTime = SystemTimer.getTime();
 
@@ -556,7 +597,12 @@ public class Game extends Canvas
             GameState gameState = new GameState();
             gameState.alienCount = this.alienCount;
             gameState.score = this.score; // 현재 점수를 gameState에 저장
-
+            // 기체 강화 저장
+            gameState.moveSpeed = this.moveSpeed;
+            gameState.firingInterval = this.firingInterval;
+            gameState.bulletCount = this.bulletCount;
+            gameState.speedUpgradeApplied = this.speedUpgradeApplied;
+            gameState.bulletCountUpgradeApplied = this.bulletCountUpgradeApplied;
             gameState.playerState = new PlayerState(ship.getX(), ship.getY());
             gameState.alienStates = entities.stream()
                     .filter(e -> e instanceof AlienEntity)
@@ -597,6 +643,17 @@ public class Game extends Canvas
             GameState loadedState = yaml.loadAs(reader, GameState.class);
 
             // =================  수정된 부분 끝 =================
+// 기체 강화
+            // 불러온 상태 적용
+            this.alienCount = loadedState.alienCount;
+            this.score = loadedState.score;
+
+            // 강화 상태 불러오기
+            this.moveSpeed = loadedState.moveSpeed;
+            this.firingInterval = loadedState.firingInterval;
+            this.bulletCount = loadedState.bulletCount;
+            this.speedUpgradeApplied = loadedState.speedUpgradeApplied;
+            this.bulletCountUpgradeApplied = loadedState.bulletCountUpgradeApplied;
 
             if (loadedState == null) {
                 message = "No save data found.";
