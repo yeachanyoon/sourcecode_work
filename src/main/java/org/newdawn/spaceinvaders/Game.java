@@ -85,7 +85,7 @@ public class Game extends Canvas {
 			java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
 
 	// 메뉴/화면 상태
-	private final MenuButton playButton       = new MenuButton("Play");
+	private final MenuButton playButton       = new MenuButton("플레이");
 	private final MenuButton challengeButton  = new MenuButton("도전과제");
 	private final MenuButton shopButton       = new MenuButton("상점");
 	private final MenuButton reinforceButton  = new MenuButton("강화");
