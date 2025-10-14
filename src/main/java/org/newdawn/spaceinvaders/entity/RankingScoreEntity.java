@@ -30,7 +30,7 @@ public class RankingScoreEntity extends Entity {
         // 제목
         g.setFont(new Font("SansSerif", Font.BOLD, 20));
         g.setColor(Color.WHITE);
-        g.drawString("Top Scores", 220, 300);
+        g.drawString("Top Scores", 250, 300);
 
         // 목록
         List<Game.RankRow> top = game.getTopScores(5);

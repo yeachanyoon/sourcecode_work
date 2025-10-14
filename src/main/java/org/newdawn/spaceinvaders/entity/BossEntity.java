@@ -101,4 +101,23 @@ public class BossEntity extends Entity {
             game.playerHit();
         }
     }
+
+    /* ===== 레벨별 조절을 위한 보스 파라미터 세터/게터 ===== */
+
+    /** 현재 탄막 간격(ms) 반환 */
+    public long getShotInterval() { return shotInterval; }
+
+    /**
+     * 탄막 간격(ms) 설정. 너무 작은 값은 과도하니 하한선을 둡니다.
+     * @param ms 간격(밀리초)
+     */
+    public void setShotInterval(long ms) {
+        this.shotInterval = Math.max(200, ms);
+    }
+
+    /** 좌우 이동 속도(px/s) 설정(옵션) */
+    public void setSpeed(double pxPerSec) {
+        this.speed = pxPerSec;
+        setHorizontalMovement(Math.signum(getHorizontalMovement()) == 0 ? speed : Math.copySign(speed, getHorizontalMovement()));
+    }
 }

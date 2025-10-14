@@ -1,4 +1,3 @@
-// (패키지/임포트 동일)
 package org.newdawn.spaceinvaders;
 
 import java.awt.Canvas;
@@ -80,14 +79,18 @@ public class Game extends Canvas {
 	private String windowTitle = "Space Invaders 102";
 	private JFrame container;
 
-	// 메뉴/화면 상태 (생략 없이 유지)
+	// 메뉴/화면 상태
 	private final MenuButton playButton       = new MenuButton("Play");
 	private final MenuButton challengeButton  = new MenuButton("도전과제");
 	private final MenuButton shopButton       = new MenuButton("상점");
 	private final MenuButton reinforceButton  = new MenuButton("강화");
-	private final MenuButton resetButton      = new MenuButton("초기화");
 	private final MenuButton homeButton       = new MenuButton("메인화면");
 	private final MenuButton backButton       = new MenuButton("← 돌아가기");
+
+	// ✅ 설정(우상단) & 설정 패널 내 초기화 버튼
+	private final MenuButton settingsButton     = new MenuButton("⚙ 설정");
+	private final MenuButton resetInSettingsBtn = new MenuButton("초기화");
+	private boolean showingSettings = false;
 
 	private boolean showHomeOnMenu   = false;
 	private boolean showingChallenge = false;
@@ -228,7 +231,6 @@ public class Game extends Canvas {
 	// 강화/상점 버튼
 	private final MenuButton rfSpeedBtn      = new MenuButton("+이속");
 	private final MenuButton rfFireRateBtn   = new MenuButton("+연사");
-	private final MenuButton rfShieldBtn     = new MenuButton("+방어막");
 	private final MenuButton rfBombBtn       = new MenuButton("+폭탄");
 	private final MenuButton rfLaserBtn      = new MenuButton("+레이저");
 	private final MenuButton rfBackBtn       = new MenuButton("완료");
@@ -239,6 +241,11 @@ public class Game extends Canvas {
 
 	private static final int COIN_PER_ALIEN = 5;
 	private static final int COIN_ON_CLEAR  = 200;
+
+	/* ====== ★ 레벨 튜닝용 상태 (추가) ====== */
+	private double dropBombProb  = 0.10; // 10%
+	private double dropLaserProb = 0.05; // 5%
+	private double alienSpeedScale = 1.00;
 
 	public Game() {
 		container = new JFrame("Space Invaders 102");
@@ -373,6 +380,9 @@ public class Game extends Canvas {
 		double baseSpeed = moveSpeed;
 		moveSpeed = baseSpeed * (1.0 + lvSpeed * 0.10);
 		firingInterval = Math.max(100, 500 - lvFireRate * 40);
+
+		/* ★ 레벨 튜닝 적용 */
+		applyLevelTuning();
 	}
 
 	/* ===== 로직/충돌/알림 ===== */
@@ -395,7 +405,7 @@ public class Game extends Canvas {
 		if (selectedShipIndex == 2 && shieldActive) {
 			shieldActive = false;
 			invulnUntil  = now + 1000 + lvShield * 250;
-			showToast("방어막이 공격을 막아냈다! (무적)", 1200);
+			showToast("Block!", 1200);
 			return;
 		}
 
@@ -403,7 +413,7 @@ public class Game extends Canvas {
 		if (lives > 0) {
 			long extra = lvShield * 250;
 			invulnUntil = now + 1000 + extra;
-			showToast("피격! 남은 목숨: " + lives, 1200);
+			showToast("Hit! 남은 목숨: " + lives, 1200);
 			return;
 		}
 
@@ -494,12 +504,12 @@ public class Game extends Canvas {
 			if (e instanceof AlienEntity) e.setHorizontalMovement(e.getHorizontalMovement()*1.02);
 		}
 
-		// ✅ 드랍 확률 수정: 폭탄 10%, 레이저 5%
-		if (centerX >= 0 && rng.nextDouble() < 0.09) {
+		// ★ 레벨별 드랍 확률 사용
+		if (centerX >= 0 && rng.nextDouble() < dropBombProb) {
 			int spriteHalf = 12;
 			spawnBombItemAt(centerX - spriteHalf, centerY - spriteHalf);
 		}
-		if (centerX >= 0 && rng.nextDouble() < 0.04) {
+		if (centerX >= 0 && rng.nextDouble() < dropLaserProb) {
 			int spriteHalf = 12;
 			spawnLaserItemAt(centerX - spriteHalf, centerY - spriteHalf);
 		}
@@ -520,14 +530,22 @@ public class Game extends Canvas {
 	}
 
 	private void spawnBoss() {
-		if (bossSpawned) return;
-		int bx = (VIRTUAL_WIDTH - 120) / 2;
-		int by = 60;
-		boss = new BossEntity(this, bx, by);
+		int bx = 400;
+		int by = 50;
+
+		BossEntity boss = new BossEntity(this, bx, by);
 		entities.add(boss);
 		bossSpawned = true;
+
+		// 레벨별 보스 사격 간격(ms)
+		long[] BOSS_SHOT_MS_BY_LEVEL = {900, 800, 700, 600, 500}; // 1~5레벨
+		int li = Math.max(1, Math.min(5, selectedLevel)) - 1;
+		boss.setShotInterval(BOSS_SHOT_MS_BY_LEVEL[li]);
+
 		showToast("보스 등장!", 1500);
-	}
+
+
+}
 
 	public void onBossDefeated(BossEntity b) {
 		if (boss == b) {
@@ -577,7 +595,7 @@ public class Game extends Canvas {
 		lastLaserUse = System.currentTimeMillis();
 		laserCount = 0;
 
-		// 레이저 빔 0.5초 유지, 매 프레임 판정은 LaserEntity->move()에서 tickLaserAt 호출로 처리
+		// 레이저 빔 0.5초 유지 (LaserEntity가 매 프레임 tickLaserAt 호출)
 		int cx = getShipCenterX();
 		entities.add(LaserEntity.createActiveBeam(this, cx, 500));
 		showToast("LASER!", 300);
@@ -653,7 +671,7 @@ public class Game extends Canvas {
 		showToast("BOOM!", 700);
 	}
 
-	/** 레이저 지속 판정(토스트 없음). cx를 중심으로 폭(halfWidth)을 사용 */
+	/** 레이저 지속 판정 (LaserEntity에서 매 프레임 호출) */
 	public void tickLaserAt(int cx, int halfWidth) {
 		int left = cx - (halfWidth + lvLaser * 4);
 		int right = cx + (halfWidth + lvLaser * 4);
@@ -666,7 +684,7 @@ public class Game extends Canvas {
 			} else if (e instanceof BossEntity) {
 				int ex = e.getX() + e.getWidth()/2;
 				if (ex >= left && ex <= right) {
-					((BossEntity)e).takeDamage(10); // 프레임당 누적 데미지 (0.5초 유지)
+					((BossEntity)e).takeDamage(10); // 프레임당 누적 데미지
 				}
 			}
 		}
@@ -695,8 +713,9 @@ public class Game extends Canvas {
 		}
 		g.setFont(new Font("SansSerif", Font.BOLD, 14));
 		g.setColor(Color.WHITE);
-		g.drawString("Bomb: " + bombCount + "/" + bombMax + "  (B키)", 10, 42);
-		g.drawString("Laser: " + laserCount + "/" + laserMax + "  (L키)", 10, 60);
+		// 왼쪽 하단으로 이동
+		g.drawString("Bomb: " + bombCount + "/" + bombMax + "  (B키)", 10, 560);
+		g.drawString("Laser: " + laserCount + "/" + laserMax + "  (L키)", 10, 580);
 		g.drawString("RP: " + reinforcePoints, 10, 78);
 		g.drawString("Coins: " + coins, 10, 96);
 	}
@@ -745,7 +764,7 @@ public class Game extends Canvas {
 	private void layoutBackButton() { backButton.setBounds(20, 20, 140, 40); }
 
 	private void layoutMainMenuButtons(boolean includeHome) {
-		int bw = 200, bh = 56;
+		int bw = 120, bh = 38;
 		int bx = (VIRTUAL_WIDTH - bw) / 2;
 		int gap = 12;
 		int byPlay = 300;
@@ -753,17 +772,31 @@ public class Game extends Canvas {
 		challengeButton.setBounds(bx, byPlay + bh + gap, bw, bh);
 		shopButton.setBounds(bx, byPlay + (bh + gap) * 2, bw, bh);
 		reinforceButton.setBounds(bx, byPlay + (bh + gap) * 3, bw, bh);
-		resetButton.setBounds(bx, byPlay + (bh + gap) * 4, bw, bh);
+		// resetButton.setBounds(...) 제거
 		if (includeHome) homeButton.setBounds(bx, byPlay + (bh + gap) * 5, bw, bh);
 	}
 
-	private void layoutLevelButtons() {
-		int bw = 160, bh = 48;
-		int y1 = 260, y2 = y1 + 70;
-		int[] xs = { 180, 400, 620, 280, 520 };
-		int[] ys = { y1,  y1,  y1,  y2,  y2 };
-		for (int i=0;i<5;i++) levelButtons[i].setBounds(xs[i]-bw/2, ys[i], bw, bh);
+	// ✅ 설정 버튼 및 설정 패널 레이아웃
+	private void layoutSettingsButtons() {
+		// 우상단(여백 20)
+		settingsButton.setBounds(VIRTUAL_WIDTH - 100, 20, 80, 40);
+		if (showingSettings) {
+			// 설정 패널의 '초기화' 버튼
+			resetInSettingsBtn.setBounds(VIRTUAL_WIDTH - 140, 70, 120, 40);
+		}
 	}
+
+	private void layoutLevelButtons() {
+		// 메인화면 버튼 스타일과 비슷하게 중앙 세로 배치
+		int bw = 160, bh = 44, gap = 12;
+		int bx = (VIRTUAL_WIDTH - bw) / 2;
+		int startY = 240;
+
+		for (int i = 0; i < 5; i++) {
+			levelButtons[i].setBounds(bx, startY + i * (bh + gap), bw, bh);
+		}
+	}
+
 
 	private void layoutShipSelectButtons() {
 		int centerY = 260;
@@ -773,34 +806,49 @@ public class Game extends Canvas {
 	}
 
 	private void drawLevelSelectScreen(Graphics2D g) {
-		g.setColor(new Color(20,20,20)); g.fillRect(0,0,VIRTUAL_WIDTH,VIRTUAL_HEIGHT);
-		layoutBackButton(); backButton.draw(g, false);
+		g.setColor(new Color(20, 20, 20));
+		g.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-		g.setColor(new Color(220,220,220));
+		layoutBackButton();
+		backButton.draw(g, false);
+
+		g.setColor(new Color(220, 220, 220));
 		g.setFont(new Font("SansSerif", Font.BOLD, 28));
 		drawCenteredString(g, "레벨 선택", VIRTUAL_WIDTH, 150);
 
 		g.setFont(new Font("SansSerif", Font.PLAIN, 14));
-		drawCenteredString(g, "처음에는 레벨 1만 해금됩니다. 각 레벨을 클리어하면 다음 레벨이 해금됩니다.", VIRTUAL_WIDTH, 180);
+		drawCenteredString(g, "각 레벨을 클리어하면 다음 레벨이 해금됩니다.", VIRTUAL_WIDTH, 180);
+
+		// 버튼 배치 & 그리기 (세로)
+		int bw = 160, bh = 44, gap = 12;
+		int bx = (VIRTUAL_WIDTH - bw) / 2;
+		int startY = 240;
 
 		layoutLevelButtons();
-		for (int i=0;i<5;i++) levelButtons[i].draw(g, false);
+		for (int i = 0; i < 5; i++) {
+			levelButtons[i].draw(g, false);
+		}
 
-		int bw = 160, bh = 48, y1 = 260, y2 = y1 + 70;
-		int[] xs = { 180, 400, 620, 280, 520 };
-		int[] ys = { y1,  y1,  y1,  y2,  y2 };
-		for (int i=0;i<5;i++) if (!levelUnlocked[i]) {
-			g.setColor(new Color(0,0,0,140));
-			g.fillRoundRect(xs[i]-bw/2, ys[i], bw, bh, 20, 20);
-			g.setColor(new Color(255,255,255,230));
-			g.setFont(new Font("SansSerif", Font.BOLD, 14));
-			String lockText = "잠김";
-			FontMetrics fm2 = g.getFontMetrics();
-			int tx = xs[i] - fm2.stringWidth(lockText)/2;
-			int ty = ys[i] + (bh - fm2.getHeight())/2 + fm2.getAscent();
-			g.drawString(lockText, tx, ty);
+		// 잠금 오버레이(해금되지 않은 버튼 위에 반투명 박스 + '잠김')
+		g.setFont(new Font("SansSerif", Font.BOLD, 14));
+		for (int i = 0; i < 5; i++) {
+			if (!levelUnlocked[i]) {
+				int x = bx;
+				int y = startY + i * (bh + gap);
+
+				g.setColor(new Color(0, 0, 0, 140));
+				g.fillRoundRect(x, y, bw, bh, 20, 20);
+
+				g.setColor(new Color(255, 255, 255, 230));
+				String lockText = "잠김";
+				FontMetrics fm = g.getFontMetrics();
+				int tx = x + (bw - fm.stringWidth(lockText)) / 2;
+				int ty = y + (bh - fm.getHeight()) / 2 + fm.getAscent();
+				g.drawString(lockText, tx, ty);
+			}
 		}
 	}
+
 
 	private void drawShipSelectScreen(Graphics2D g) {
 		g.setColor(new Color(20,20,20)); g.fillRect(0,0,VIRTUAL_WIDTH,VIRTUAL_HEIGHT);
@@ -827,41 +875,82 @@ public class Game extends Canvas {
 	}
 
 	private void layoutReinforceButtons() {
-		int bw = 160, bh = 48;
-		int bx = (VIRTUAL_WIDTH - (bw*3 + 40)) / 2;
-		int by = 240;
-		rfSpeedBtn.setBounds(bx, by, bw, bh);
-		rfFireRateBtn.setBounds(bx + bw + 20, by, bw, bh);
-		rfShieldBtn.setBounds(bx + (bw + 20)*2, by, bw, bh);
-		rfBombBtn.setBounds(bx + 40, by + 70, bw, bh);
-		rfLaserBtn.setBounds(bx + 40 + bw + 20, by + 70, bw, bh);
-		rfBackBtn.setBounds((VIRTUAL_WIDTH - 200)/2, by + 160, 200, 52);
+		int bw = 100, bh = 48;
+		int gap = 22;
+
+		int totalW = bw * 2 + gap;
+		int baseX = (VIRTUAL_WIDTH - totalW) / 2;
+		int baseY = 240;
+
+		// 2 x 2
+		rfSpeedBtn.setBounds   (baseX,             baseY,          bw, bh);
+		rfFireRateBtn.setBounds(baseX + bw + gap,  baseY,          bw, bh);
+		rfBombBtn.setBounds    (baseX,             baseY + bh+gap, bw, bh);
+		rfLaserBtn.setBounds   (baseX + bw + gap,  baseY + bh+gap, bw, bh);
+
+		rfBackBtn.setBounds((VIRTUAL_WIDTH - 200)/2, baseY + (bh+gap)*2 + 30, 200, 52);
 	}
+
 
 	private void drawReinforceScreen(Graphics2D g) {
 		g.setColor(new Color(0,0,0,200));
 		g.fillRect(0,0,VIRTUAL_WIDTH,VIRTUAL_HEIGHT);
+
+		// 제목/요약
 		g.setColor(Color.WHITE);
 		g.setFont(new Font("SansSerif", Font.BOLD, 28));
-		drawCenteredString(g, "강화 (Reinforce)", VIRTUAL_WIDTH, 150);
+		drawCenteredString(g, "강화", VIRTUAL_WIDTH, 150);
+
 		g.setFont(new Font("SansSerif", Font.PLAIN, 16));
 		String info = "강화 포인트(RP): " + reinforcePoints + "   (최대 레벨: " + REINF_MAX + ")";
 		drawCenteredString(g, info, VIRTUAL_WIDTH, 180);
-		String lvText = String.format("이속:%d  연사:%d  방어막:%d  폭탄:%d  레이저:%d",
-				lvSpeed, lvFireRate, lvShield, lvBomb, lvLaser);
-		drawCenteredString(g, lvText, VIRTUAL_WIDTH, 205);
+
+		// 버튼 배치
 		layoutReinforceButtons();
 		rfSpeedBtn.draw(g, false);
 		rfFireRateBtn.draw(g, false);
-		rfShieldBtn.draw(g, false);
 		rfBombBtn.draw(g, false);
 		rfLaserBtn.draw(g, false);
 		rfBackBtn.draw(g, false);
+
+		// 각 버튼 아래 레벨 텍스트
 		g.setFont(new Font("SansSerif", Font.PLAIN, 14));
-		drawCenteredString(g,
-				"이속:+10%/Lv  연사:간격-40ms/Lv  방어막:무적+250ms/Lv  폭탄:반경+20px/Lv  레이저:폭+8px/Lv",
-				VIRTUAL_WIDTH, 330);
+		g.setColor(new Color(230,230,230));
+
+		// speed
+		{
+			java.awt.Rectangle r = new java.awt.Rectangle(rfSpeedBtn.x, rfSpeedBtn.y, rfSpeedBtn.w, rfSpeedBtn.h);
+			String t = "Lv " + lvSpeed + " / " + REINF_MAX;
+			int tx = r.x + (r.width - g.getFontMetrics().stringWidth(t)) / 2;
+			int ty = r.y + r.height + 18;
+			g.drawString(t, tx, ty);
+		}
+		// fire-rate
+		{
+			java.awt.Rectangle r = new java.awt.Rectangle(rfFireRateBtn.x, rfFireRateBtn.y, rfFireRateBtn.w, rfFireRateBtn.h);
+			String t = "Lv " + lvFireRate + " / " + REINF_MAX;
+			int tx = r.x + (r.width - g.getFontMetrics().stringWidth(t)) / 2;
+			int ty = r.y + r.height + 18;
+			g.drawString(t, tx, ty);
+		}
+		// bomb
+		{
+			java.awt.Rectangle r = new java.awt.Rectangle(rfBombBtn.x, rfBombBtn.y, rfBombBtn.w, rfBombBtn.h);
+			String t = "Lv " + lvBomb + " / " + REINF_MAX;
+			int tx = r.x + (r.width - g.getFontMetrics().stringWidth(t)) / 2;
+			int ty = r.y + r.height + 18;
+			g.drawString(t, tx, ty);
+		}
+		// laser
+		{
+			java.awt.Rectangle r = new java.awt.Rectangle(rfLaserBtn.x, rfLaserBtn.y, rfLaserBtn.w, rfLaserBtn.h);
+			String t = "Lv " + lvLaser + " / " + REINF_MAX;
+			int tx = r.x + (r.width - g.getFontMetrics().stringWidth(t)) / 2;
+			int ty = r.y + r.height + 18;
+			g.drawString(t, tx, ty);
+		}
 	}
+
 
 	private void layoutShopButtons() {
 		int startY = 220;
@@ -908,8 +997,6 @@ public class Game extends Canvas {
 			g.setFont(new Font("SansSerif", Font.BOLD, 16));
 			g.drawString(skins[i].name, 220, y+20);
 			g.setFont(new Font("SansSerif", Font.PLAIN, 14));
-
-			// ✅ 수정: 가격은 Skin에서
 			String status = skins[i].owned ? (i==selectedSkinIndex ? "장착중" : "보유") : ("가격: " + skins[i].price);
 			g.drawString(status, 220, y+42);
 
@@ -930,18 +1017,28 @@ public class Game extends Canvas {
 		int tx = (VIRTUAL_WIDTH - fm.stringWidth(title)) / 2;
 		g.drawString(title, tx, 200);
 
-		g.setFont(new Font("SansSerif", Font.PLAIN, 16));
-		String sub = "Play / 도전과제 / 상점 / 강화 / 초기화";
-		tx = (VIRTUAL_WIDTH - g.getFontMetrics().stringWidth(sub)) / 2;
-		g.drawString(sub, tx, 240);
-
+		// 메인 버튼들
 		layoutMainMenuButtons(showHomeOnMenu);
 		playButton.draw(g, false);
 		challengeButton.draw(g, false);
 		shopButton.draw(g, false);
 		reinforceButton.draw(g, false);
-		resetButton.draw(g, false);
+		// resetButton.draw(g, false); // ❌ 제거
 		if (showHomeOnMenu) homeButton.draw(g, false);
+
+		// ✅ 우상단 설정 버튼 + 설정 패널
+		layoutSettingsButtons();
+		settingsButton.draw(g, false);
+
+		if (showingSettings) {
+			// 작은 설정 패널
+			g.setColor(new Color(0,0,0,180));
+			g.fillRoundRect(VIRTUAL_WIDTH - 160, 60, 150, 70, 12, 12);
+			g.setColor(new Color(255,255,255,200));
+			g.drawRoundRect(VIRTUAL_WIDTH - 160, 60, 150, 70, 12, 12);
+
+			resetInSettingsBtn.draw(g, false);
+		}
 	}
 
 	private void handleMouseClick(int mx, int my) {
@@ -969,12 +1066,12 @@ public class Game extends Canvas {
 			layoutReinforceButtons();
 			if (rfSpeedBtn.contains(mx, my))    { tryUpgrade(() -> lvSpeed++ , lvSpeed); return; }
 			if (rfFireRateBtn.contains(mx, my)) { tryUpgrade(() -> lvFireRate++ , lvFireRate); return; }
-			if (rfShieldBtn.contains(mx, my))   { tryUpgrade(() -> lvShield++ , lvShield); return; }
 			if (rfBombBtn.contains(mx, my))     { tryUpgrade(() -> lvBomb++ , lvBomb); return; }
 			if (rfLaserBtn.contains(mx, my))    { tryUpgrade(() -> lvLaser++ , lvLaser); return; }
 			if (rfBackBtn.contains(mx, my))     { showingReinforce = false; saveNow(); return; }
 			return;
 		}
+
 		if (showingLevelSelect) {
 			layoutBackButton();
 			if (backButton.contains(mx, my)) { showingLevelSelect = false; return; }
@@ -1004,11 +1101,26 @@ public class Game extends Canvas {
 		}
 		if (waitingForKeyPress && !showingLevelSelect && !showingShipSelect && !showingChallenge && !showingReinforce && !showingShop) {
 			layoutMainMenuButtons(showHomeOnMenu);
+			layoutSettingsButtons(); // ✅ 설정 버튼도 위치 갱신
+
+			// ✅ 설정 버튼 토글
+			if (settingsButton.contains(mx, my)) {
+				showingSettings = !showingSettings;
+				return;
+			}
+			// ✅ 설정 패널 안의 초기화
+			if (showingSettings && resetInSettingsBtn.contains(mx, my)) {
+				resetSaveAndRuntime();
+				showingSettings = false;
+				return;
+			}
+
+			// 기존 메인 버튼들
 			if (playButton.contains(mx, my)) { showHomeOnMenu = false; showingLevelSelect = true; return; }
 			if (challengeButton.contains(mx, my)) { showHomeOnMenu = false; showingChallenge = true; return; }
 			if (shopButton.contains(mx, my)) { showHomeOnMenu = false; showingShop = true; return; }
 			if (reinforceButton.contains(mx, my)) { showHomeOnMenu = false; showingReinforce = true; return; }
-			if (resetButton.contains(mx, my)) { resetSaveAndRuntime(); return; }
+			// if (resetButton.contains(mx, my)) { resetSaveAndRuntime(); return; } // ❌ 제거
 			if (showHomeOnMenu && homeButton.contains(mx, my)) {
 				showingLevelSelect = false; showingShipSelect = false; showingChallenge = false; showingReinforce = false; showingShop = false;
 				selectedLevel = -1; selectedShipIndex = -1; message = "SPACE INVADERS"; showHomeOnMenu = false; return;
@@ -1034,7 +1146,7 @@ public class Game extends Canvas {
 				for (int i=0;i<entities.size();i++) entities.get(i).move(delta);
 			}
 
-			// ===== 렌더 순서: 블랙홀 → 일반 엔티티(레이저BEAM 제외) → 레이저BEAM(맨 앞, 배 가리지 않게) =====
+			// 렌더 순서: 블랙홀 → 일반 엔티티(레이저BEAM 제외) → 레이저BEAM(맨 앞)
 			for (int i=0;i<entities.size();i++)
 				if (entities.get(i) instanceof BlackHoleEntity) entities.get(i).draw(g);
 
@@ -1156,7 +1268,7 @@ public class Game extends Canvas {
 
 	/* ===== 간단 버튼 ===== */
 	private static class MenuButton {
-		private String label; private int x, y, w, h;
+		private String label; int x, y, w, h; // ← (x,y,w,h) 접근 필요해서 private → package로 변경
 		MenuButton(String label) { this.label = label; }
 		void setBounds(int x, int y, int w, int h) { this.x=x; this.y=y; this.w=w; this.h=h; }
 		boolean contains(int mx, int my) { return (mx>=x && mx<=x+w && my>=y && my<=y+h); }
@@ -1350,7 +1462,7 @@ public class Game extends Canvas {
 
 		boss = null; bossSpawned = false; bossDefeated = false;
 
-		showToast("세이브 데이터가 초기화되었습니다.", 1400);
+		showToast("저장된 데이터가 초기화되었습니다.", 1400);
 	}
 
 	private interface Inc { void go(); }
@@ -1376,6 +1488,53 @@ public class Game extends Canvas {
 		saveData.selectedSkinIndex = selectedSkinIndex;
 		saveNow();
 		showToast("구매/장착 완료: " + s.name + " (잔액: "+coins+")", 1300);
+	}
+
+	/* ===== ★ 레벨별 튜닝 로직 (추가) ===== */
+	private void applyLevelTuning() {
+		// 기본값(안전)
+		dropBombProb = 0.10;
+		dropLaserProb = 0.05;
+		alienFireInterval = 1200;
+		alienSpeedScale = 1.00;
+
+		switch (selectedLevel) {
+			case 1:
+				dropBombProb = 0.10; dropLaserProb = 0.06;
+				alienFireInterval = 1300;
+				alienSpeedScale = 0.80;
+				break;
+			case 2:
+				dropBombProb = 0.08; dropLaserProb = 0.05;
+				alienFireInterval = 1200;
+				alienSpeedScale = 0.90;
+				break;
+			case 3:
+				dropBombProb = 0.07; dropLaserProb = 0.04;
+				alienFireInterval = 1100;
+				alienSpeedScale = 1.00;
+				break;
+			case 4:
+				dropBombProb = 0.06; dropLaserProb = 0.03;
+				alienFireInterval = 1000;
+				alienSpeedScale = 1.10;
+				break;
+			case 5:
+				dropBombProb = 0.05; dropLaserProb = 0.02;
+				alienFireInterval = 900;
+				alienSpeedScale = 1.20;
+				break;
+			default:
+				break;
+		}
+
+		// 현재 필드의 모든 Alien 수평속도에 배율 적용 (AlienEntity는 수정하지 않는 조건)
+		for (int i = 0; i < entities.size(); i++) {
+			Entity e = entities.get(i);
+			if (e instanceof AlienEntity) {
+				e.setHorizontalMovement(e.getHorizontalMovement() * alienSpeedScale);
+			}
+		}
 	}
 
 	public static void main(String[] args) { Game g = new Game(); g.gameLoop(); }
