@@ -3,71 +3,48 @@ package org.newdawn.spaceinvaders.entity;
 import org.newdawn.spaceinvaders.Game;
 
 /**
- * An entity representing a shot fired by the player's ship
- * 
- * @author Kevin Glass
+ * 플레이어가 쏘는 총알 엔티티
  */
 public class ShotEntity extends Entity {
-	/** The vertical speed at which the players shot moves */
-	private double moveSpeed = -300;
-	/** The game in which this entity exists */
+	private double moveSpeed = -300; // 위로 올라감
 	private Game game;
-	/** True if this shot has been "used", i.e. its hit something */
 	private boolean used = false;
-	
-	/**
-	 * Create a new shot from the player
-	 * 
-	 * @param game The game in which the shot has been created
-	 * @param sprite The sprite representing this shot
-	 * @param x The initial x location of the shot
-	 * @param y The initial y location of the shot
-	 */
-	public ShotEntity(Game game,String sprite,int x,int y) {
-		super(sprite,x,y);
-		
+
+	public ShotEntity(Game game, String sprite, int x, int y) {
+		super(sprite, x, y);
 		this.game = game;
-		
 		dy = moveSpeed;
 	}
 
-	/**
-	 * Request that this shot moved based on time elapsed
-	 * 
-	 * @param delta The time that has elapsed since last move
-	 */
+	/** 이동 처리 */
 	public void move(long delta) {
-		// proceed with normal move
 		super.move(delta);
-		
-		// if we shot off the screen, remove ourselfs
+
+		// 화면 위로 벗어나면 제거
 		if (y < -100) {
 			game.removeEntity(this);
 		}
 	}
-	
-	/**
-	 * Notification that this shot has collided with another
-	 * entity
-	 * 
-	 * @parma other The other entity with which we've collided
-	 */
+
+	/** 충돌 처리 */
 	public void collidedWith(Entity other) {
-		// prevents double kills, if we've already hit something,
-		// don't collide
-		if (used) {
-			return;
-		}
-		
-		// if we've hit an alien, kill it!
+		if (used) return;
+
+		// 🔹 에일리언과 충돌 시
 		if (other instanceof AlienEntity) {
-			// remove the affected entities
 			game.removeEntity(this);
 			game.removeEntity(other);
-			
-			// notify the game that the alien has been killed
-			game.notifyAlienKilled();
 			used = true;
+
+			int cx = other.getX() + other.getWidth() / 2;
+			int cy = other.getY() + other.getHeight() / 2;
+			game.notifyAlienKilledAt(cx, cy);
 		}
+	}
+
+	/** 🔸 추상 메서드 구현 (Entity 상속 필수) */
+	@Override
+	public void doLogic() {
+		// 총알은 별도의 논리 업데이트가 필요 없음
 	}
 }

@@ -6,106 +6,84 @@ import org.newdawn.spaceinvaders.SpriteStore;
 
 /**
  * An entity which represents one of our space invader aliens.
- * 
- * @author Kevin Glass
+ *
+ * 원본 흐름 유지:
+ * - 좌우로 움직이며 화면 경계에 닿으면 game.updateLogic() 요청
+ * - doLogic()에서 방향 반전 + 아래로 하강
+ * - 충돌 처리는 원본과 같이: 여기서는 별도 처리 없음(ShotEntity가 처리)
+ *   -> 만약 30% 폭탄 드랍(좌표 필요)을 Alien에서 직접 처리하길 원하면
+ *      ShotEntity 쪽 로직을 비활성화하고 여기에서 처리하도록 별도 버전 줄 수 있음.
  */
 public class AlienEntity extends Entity {
-	/** The speed at which the alient moves horizontally */
+	/** horizontal speed */
 	private double moveSpeed = 75;
-	/** The game in which the entity exists */
+	/** game ref */
 	private Game game;
-	/** The animation frames */
+	/** animation frames */
 	private Sprite[] frames = new Sprite[4];
-	/** The time since the last frame change took place */
+	/** frame change timer */
 	private long lastFrameChange;
-	/** The frame duration in milliseconds, i.e. how long any given frame of animation lasts */
+	/** frame duration (ms) */
 	private long frameDuration = 250;
-	/** The current frame of animation being displayed */
+	/** frame index */
 	private int frameNumber;
-	
+
 	/**
 	 * Create a new alien entity
-	 * 
+	 *
 	 * @param game The game in which this entity is being created
-	 * @param x The intial x location of this alien
-	 * @param y The intial y location of this alient
+	 * @param x The initial x location of this alien
+	 * @param y The initial y location of this alien
 	 */
 	public AlienEntity(Game game,int x,int y) {
 		super("sprites/alien.gif",x,y);
-		
-		// setup the animatin frames
+
+		// setup animation frames
 		frames[0] = sprite;
 		frames[1] = SpriteStore.get().getSprite("sprites/alien2.gif");
 		frames[2] = sprite;
 		frames[3] = SpriteStore.get().getSprite("sprites/alien3.gif");
-		
+
 		this.game = game;
-		dx = -moveSpeed;
+		dx = -moveSpeed; // start moving left
 	}
 
-	/**
-	 * Request that this alien moved based on time elapsed
-	 * 
-	 * @param delta The time that has elapsed since last move
-	 */
+	/** Move based on time elapsed (and drive animation) */
 	public void move(long delta) {
-		// since the move tells us how much time has passed
-		// by we can use it to drive the animation, however
-		// its the not the prettiest solution
+		// animation timing
 		lastFrameChange += delta;
-		
-		// if we need to change the frame, update the frame number
-		// and flip over the sprite in use
 		if (lastFrameChange > frameDuration) {
-			// reset our frame change time counter
 			lastFrameChange = 0;
-			
-			// update the frame
 			frameNumber++;
-			if (frameNumber >= frames.length) {
-				frameNumber = 0;
-			}
-			
+			if (frameNumber >= frames.length) frameNumber = 0;
 			sprite = frames[frameNumber];
 		}
-		
-		// if we have reached the left hand side of the screen and
-		// are moving left then request a logic update 
+
+		// edge -> request logic update (row drop + reverse)
 		if ((dx < 0) && (x < 10)) {
 			game.updateLogic();
 		}
-		// and vice vesa, if we have reached the right hand side of 
-		// the screen and are moving right, request a logic update
 		if ((dx > 0) && (x > 750)) {
 			game.updateLogic();
 		}
-		
-		// proceed with normal move
+
 		super.move(delta);
 	}
-	
-	/**
-	 * Update the game logic related to aliens
-	 */
+
+	/** Update the game logic related to aliens */
 	public void doLogic() {
-		// swap over horizontal movement and move down the
-		// screen a bit
+		// reverse horizontal movement and move down a bit
 		dx = -dx;
 		y += 10;
-		
-		// if we've reached the bottom of the screen then the player
-		// dies
+
+		// bottom reached -> player dies (원본 유지, 필요시 조정)
 		if (y > 570) {
 			game.notifyDeath();
 		}
 	}
-	
-	/**
-	 * Notification that this alien has collided with another entity
-	 * 
-	 * @param other The other entity
-	 */
+
+	/** Collisions with aliens are handled elsewhere (e.g., ShotEntity) */
 	public void collidedWith(Entity other) {
-		// collisions with aliens are handled elsewhere
+		// no-op (원본과 동일)
 	}
 }

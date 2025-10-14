@@ -7,146 +7,110 @@ import org.newdawn.spaceinvaders.Sprite;
 import org.newdawn.spaceinvaders.SpriteStore;
 
 /**
- * An entity represents any element that appears in the game. The
- * entity is responsible for resolving collisions and movement
- * based on a set of properties defined either by subclass or externally.
- * 
- * Note that doubles are used for positions. This may seem strange
- * given that pixels locations are integers. However, using double means
- * that an entity can move a partial pixel. It doesn't of course mean that
- * they will be display half way through a pixel but allows us not lose
- * accuracy as we move.
- * 
- * @author Kevin Glass
+ * 모든 게임 오브젝트의 기본 엔티티 클래스.
+ * - 위치/이동/그리기/충돌처리의 공통 로직을 제공
+ * - 하위 클래스는 doLogic(), collidedWith()를 구현해야 함
  */
 public abstract class Entity {
-	/** The current x location of this entity */ 
-	protected double x;
-	/** The current y location of this entity */
-	protected double y;
-	/** The sprite that represents this entity */
+	/** 현재 스프라이트 */
 	protected Sprite sprite;
-	/** The current speed of this entity horizontally (pixels/sec) */
+
+	/** 위치 (더 부드러운 이동을 위해 double 사용) */
+	protected double x;
+	protected double y;
+
+	/** 속도 (px/sec) */
 	protected double dx;
-	/** The current speed of this entity vertically (pixels/sec) */
 	protected double dy;
-	/** The rectangle used for this entity during collisions  resolution */
-	private Rectangle me = new Rectangle();
-	/** The rectangle used for other entities during collision resolution */
-	private Rectangle him = new Rectangle();
-	
+
+	/** 충돌 캐시용 바운딩 박스 */
+	private final Rectangle me   = new Rectangle();
+	private final Rectangle him  = new Rectangle();
+
 	/**
-	 * Construct a entity based on a sprite image and a location.
-	 * 
-	 * @param ref The reference to the image to be displayed for this entity
- 	 * @param x The initial x location of this entity
-	 * @param y The initial y location of this entity
+	 * @param ref 로딩할 스프라이트 경로 (없으면 null 가능)
+	 * @param x   초기 X
+	 * @param y   초기 Y
 	 */
-	public Entity(String ref,int x,int y) {
-		this.sprite = SpriteStore.get().getSprite(ref);
+	public Entity(String ref, int x, int y) {
+		if (ref != null) {
+			this.sprite = SpriteStore.get().getSprite(ref);
+		}
 		this.x = x;
 		this.y = y;
 	}
-	
-	/**
-	 * Request that this entity move itself based on a certain ammount
-	 * of time passing.
-	 * 
-	 * @param delta The ammount of time that has passed in milliseconds
-	 */
+
+	/* ========== 이동 & 렌더 ========== */
+
+	/** delta(ms) 동안의 이동 처리 */
 	public void move(long delta) {
-		// update the location of the entity based on move speeds
-		x += (delta * dx) / 1000;
-		y += (delta * dy) / 1000;
-	}
-	
-	/**
-	 * Set the horizontal speed of this entity
-	 * 
-	 * @param dx The horizontal speed of this entity (pixels/sec)
-	 */
-	public void setHorizontalMovement(double dx) {
-		this.dx = dx;
+		x += (dx * delta) / 1000.0;
+		y += (dy * delta) / 1000.0;
 	}
 
-	/**
-	 * Set the vertical speed of this entity
-	 * 
-	 * @param dx The vertical speed of this entity (pixels/sec)
-	 */
-	public void setVerticalMovement(double dy) {
-		this.dy = dy;
-	}
-	
-	/**
-	 * Get the horizontal speed of this entity
-	 * 
-	 * @return The horizontal speed of this entity (pixels/sec)
-	 */
-	public double getHorizontalMovement() {
-		return dx;
-	}
-
-	/**
-	 * Get the vertical speed of this entity
-	 * 
-	 * @return The vertical speed of this entity (pixels/sec)
-	 */
-	public double getVerticalMovement() {
-		return dy;
-	}
-	
-	/**
-	 * Draw this entity to the graphics context provided
-	 * 
-	 * @param g The graphics context on which to draw
-	 */
+	/** 그리기 (스프라이트가 있을 때만) */
 	public void draw(Graphics g) {
-		sprite.draw(g,(int) x,(int) y);
-	}
-	
-	/**
-	 * Do the logic associated with this entity. This method
-	 * will be called periodically based on game events
-	 */
-	public void doLogic() {
-	}
-	
-	/**
-	 * Get the x location of this entity
-	 * 
-	 * @return The x location of this entity
-	 */
-	public int getX() {
-		return (int) x;
+		if (sprite != null) {
+			sprite.draw(g, (int) x, (int) y);
+		}
 	}
 
+	/* ========== 충돌 ========== */
+
 	/**
-	 * Get the y location of this entity
-	 * 
-	 * @return The y location of this entity
-	 */
-	public int getY() {
-		return (int) y;
-	}
-	
-	/**
-	 * Check if this entity collised with another.
-	 * 
-	 * @param other The other entity to check collision against
-	 * @return True if the entities collide with each other
+	 * AABB 충돌 판정 (NPE 방지 버전)
+	 * 스프라이트가 하나라도 없으면 충돌하지 않는 것으로 간주한다.
 	 */
 	public boolean collidesWith(Entity other) {
-		me.setBounds((int) x,(int) y,sprite.getWidth(),sprite.getHeight());
-		him.setBounds((int) other.x,(int) other.y,other.sprite.getWidth(),other.sprite.getHeight());
+		if (other == null || this == other) return false;
+
+		// ✅ 스프라이트가 하나라도 없으면 충돌 검사 스킵 (NPE 방지)
+		if (this.sprite == null || other.sprite == null) {
+			return false;
+		}
+
+		// 나
+		me.setBounds((int) x, (int) y, getWidth(), getHeight());
+		// 상대
+		him.setBounds(other.getX(), other.getY(), other.getWidth(), other.getHeight());
 
 		return me.intersects(him);
 	}
-	
-	/**
-	 * Notification that this entity collided with another.
-	 * 
-	 * @param other The entity with which this entity collided.
-	 */
+
+	/* ========== 좌표/크기 ========== */
+
+	public int getX() { return (int) x; }
+	public int getY() { return (int) y; }
+
+	/** 필요 시 하위/외부에서 사용할 수 있도록 세터도 제공 */
+	public void setX(int x) { this.x = x; }
+	public void setY(int y) { this.y = y; }
+	public void setX(double x) { this.x = x; }
+	public void setY(double y) { this.y = y; }
+
+	public int getWidth() {
+		if (sprite != null) return sprite.getWidth();
+		return 0;
+	}
+
+	public int getHeight() {
+		if (sprite != null) return sprite.getHeight();
+		return 0;
+	}
+
+	/* ========== 속도 제어 ========== */
+
+	public void setHorizontalMovement(double dx) { this.dx = dx; }
+	public void setVerticalMovement(double dy) { this.dy = dy; }
+
+	public double getHorizontalMovement() { return dx; }
+	public double getVerticalMovement() { return dy; }
+
+	/* ========== 게임 로직/충돌 이벤트 ========== */
+
+	/** 프레임 간 논리 업데이트(예: 행 이동, 속도 변경 등) */
+	public abstract void doLogic();
+
+	/** 충돌 시 호출되는 콜백 */
 	public abstract void collidedWith(Entity other);
 }
